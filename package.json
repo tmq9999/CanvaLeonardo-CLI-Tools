@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "test": "node --import tsx --test src/core/config.test.ts src/utils/proxy.test.ts src/services/kiotproxy.test.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "build": "tsc",
     "start": "node dist/index.js"
   },

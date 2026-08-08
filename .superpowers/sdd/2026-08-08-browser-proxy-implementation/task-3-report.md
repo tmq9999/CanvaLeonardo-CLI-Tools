@@ -33,3 +33,20 @@ fail 0
 ## Live verification status
 
 Unverified. No real user-provided GPM port was connected and no health, group, profile CRUD, start, stop, or CDP response was captured.
+
+## Follow-up: standard test coverage fix
+
+The original `npm test` script enumerated only config, proxy, and Kiot tests, so it executed 15 tests and omitted the five GPM client diagnostics. It now invokes Node's `src/**/*.test.ts` glob and discovers every current source test.
+
+```text
+$ npm test
+tests 20
+pass 20
+fail 0
+
+$ npm run build
+> canvaleonardo@1.0.0 build
+> tsc
+```
+
+`package-lock.json` was not changed because this script-only edit does not alter dependencies. Live GPM verification remains unverified; no port or response was captured.
