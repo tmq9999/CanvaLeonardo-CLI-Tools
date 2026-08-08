@@ -62,6 +62,29 @@ Temporary profile: soft-deleted.
 
 The temporary profiles used for the live checks were soft-deleted. The GPM profile used no configured proxy, so its observed IP confirms browser navigation through the GPM CDP adapter but not proxy routing through GPM. Kiot resolve/release was not called with a live key in this correction.
 
+## GPM proxy routing capture
+
+Both checks created a temporary profile in the supplied GPM group with `raw_proxy`, started it with the documented `skip_proxy_check=true` option, attached through the returned CDP websocket, and then stopped and soft-deleted it.
+
+```text
+HTTP proxy profile
+raw_proxy: http://42.117.52.59:27472
+Normal GPM start: ProxyCheckFailed.
+Start with skip_proxy_check=true: browser launched, but navigation returned
+net::ERR_NO_SUPPORTED_PROXIES.
+Result: HTTP proxy routing through GPM is not verified; the browser rejected it.
+
+SOCKS5 proxy profile
+raw_proxy: socks5://42.117.52.59:65104
+GET https://api.ipify.org?format=json through the GPM CDP browser
+HTTP status: 200
+Expected proxy IP: 42.117.52.59
+Observed external IP: 42.117.52.59
+Result: proxy routing through GPM verified.
+Profile stop: completed.
+Temporary profile: soft-deleted.
+```
+
 ## Scope and concerns
 
 - The active menu now invokes the runtime, but it has no task-specific browser automation; the common runtime accepts a task callback for future automation.
