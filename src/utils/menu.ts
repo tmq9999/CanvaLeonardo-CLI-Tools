@@ -2,6 +2,8 @@ import { settings } from "../cli/settings.js"
 import { select } from "@inquirer/prompts"
 import chalk from "chalk"
 import { clearScreen } from "./screen.js"
+import { loadConfig } from "../core/config.js"
+import { runBrowserRuntime } from "../core/script.js"
 
 export async function mainMenu(): Promise<void> {
     while (true) {
@@ -23,7 +25,13 @@ export async function mainMenu(): Promise<void> {
 
         if (selected === "start") {
             clearScreen()
-            console.log("Tính năng Bắt đầu chưa được triển khai.")
+            try {
+                await runBrowserRuntime(await loadConfig(), async () => {
+                    console.log("Browser runtime đã sẵn sàng cho tác vụ tự động hóa.")
+                })
+            } catch (error) {
+                console.log(chalk.red(`Không thể khởi động browser runtime: ${error instanceof Error ? error.message : String(error)}`))
+            }
             continue
         }
 

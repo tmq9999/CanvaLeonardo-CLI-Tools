@@ -1,6 +1,7 @@
 import { checkbox, input, select } from "@inquirer/prompts";
 import chalk from "chalk";
 import { loadConfig, saveConfig, validateDelay, validatePort, validateThreads, validateTxtPath } from "../core/config.js";
+import { GpmLoginClient } from "../services/gpmlogin.js";
 import { clearScreen } from "../utils/screen.js";
 export async function settings() {
     let config = await loadConfig();
@@ -110,6 +111,7 @@ async function browserSettings(config) {
         message: chalk.yellow("Cài đặt trình duyệt\n"),
         default: config.browser.engine,
         choices: [
+            { name: "Chromium", value: "chromium" },
             { name: "GPM Login", value: "gpm" },
             { name: "Camoufox", value: "camoufox" },
             { name: "Quay lại (Back)", value: "back" }
@@ -118,13 +120,11 @@ async function browserSettings(config) {
     if (engine === "back")
         return config;
     if (engine === "gpm") {
-        const gpmPort = Number(await input({
-            message: "Port GPM Login:",
-            default: String(config.browser.gpmPort),
-            validate: validatePort
-        }));
-        const updated = { ...config, browser: { ...config.browser, engine, gpmPort } };
-        return persist(updated, "Đã lưu cài đặt GPM Login");
+        const updated = await configureGpmBrowser(config, defaultGpmSettingsDependencies(config));
+        return updated === config ? config : persist(updated, "Đã lưu cài đặt GPM Login và group");
+    }
+    if (engine === "chromium") {
+        return persist({ ...config, browser: { ...config.browser, engine } }, "Đã lưu cài đặt Chromium");
     }
     const mode = await select({
         message: chalk.yellow("Cấu hình Camoufox\n"),
@@ -168,4 +168,66 @@ async function browserSettings(config) {
         }
     };
     return persist(updated, "Đã lưu cài đặt Camoufox");
+}
+export async function configureGpmBrowser(config, dependencies) {
+    while (true) {
+        const port = Number(await dependencies.inputPort());
+        const client = dependencies.createClient(port);
+        try {
+            await client.connect();
+            const groups = await client.listGroups();
+            if (groups.length === 0)
+                throw new Error("GPM Login không có group để chọn");
+            const groupId = await dependencies.selectGroup(groups);
+            const group = groups.find(candidate => candidate.id === groupId);
+            if (!group)
+                throw new Error("Group GPM Login đã chọn không hợp lệ");
+            const profileId = (await dependencies.inputProfileId(group)).trim();
+            if (!profileId)
+                throw new Error("GPM Login cần một profile ID để khởi chạy");
+            return {
+                ...config,
+                browser: {
+                    ...config.browser,
+                    engine: "gpm",
+                    gpmPort: port,
+                    gpmGroupId: group.id,
+                    gpmGroupName: group.name,
+                    gpmProfileId: profileId
+                }
+            };
+        }
+        catch (error) {
+            dependencies.notifyError(error instanceof Error ? error.message : "Không thể kết nối GPM Login");
+            if (await dependencies.selectRetry() === "back")
+                return config;
+        }
+    }
+}
+function defaultGpmSettingsDependencies(config) {
+    return {
+        inputPort: () => input({
+            message: "Port GPM Login:",
+            default: String(config.browser.gpmPort),
+            validate: validatePort
+        }),
+        selectRetry: () => select({
+            message: chalk.yellow("Kết nối hoặc tải group GPM thất bại."),
+            choices: [
+                { name: "Thử lại (Retry)", value: "retry" },
+                { name: "Quay lại (Back)", value: "back" }
+            ]
+        }),
+        selectGroup: groups => select({
+            message: chalk.yellow("Chọn một group GPM Login:"),
+            choices: groups.map(group => ({ name: group.name, value: group.id }))
+        }),
+        inputProfileId: group => input({
+            message: `Profile ID trong group ${group.name}:`,
+            default: config.browser.gpmProfileId ?? undefined,
+            validate: value => value.trim() ? true : "Profile ID không được để trống"
+        }),
+        createClient: port => new GpmLoginClient(port),
+        notifyError: message => console.log(chalk.red(`✗ ${message}`))
+    };
 }
