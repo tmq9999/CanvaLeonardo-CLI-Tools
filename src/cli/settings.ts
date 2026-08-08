@@ -9,6 +9,7 @@ import {
     validateThreads,
     validateTxtPath
 } from "../core/config.js"
+import { GpmLoginClient, type GpmGroup } from "../services/gpmlogin.js"
 import { clearScreen } from "../utils/screen.js"
 
 export async function settings(): Promise<void> {
@@ -130,13 +131,8 @@ async function browserSettings(config: AppConfig): Promise<AppConfig> {
     if (engine === "back") return config
 
     if (engine === "gpm") {
-        const gpmPort = Number(await input({
-            message: "Port GPM Login:",
-            default: String(config.browser.gpmPort),
-            validate: validatePort
-        }))
-        const updated = { ...config, browser: { ...config.browser, engine, gpmPort } }
-        return persist(updated, "Đã lưu cài đặt GPM Login")
+        const updated = await configureGpmBrowser(config, defaultGpmSettingsDependencies(config))
+        return updated === config ? config : persist(updated, "Đã lưu cài đặt GPM Login và group")
     }
 
     if (engine === "chromium") {
@@ -185,4 +181,68 @@ async function browserSettings(config: AppConfig): Promise<AppConfig> {
         }
     }
     return persist(updated, "Đã lưu cài đặt Camoufox")
+}
+
+type GpmSettingsClient = {
+    connect(): Promise<unknown>
+    listGroups(): Promise<GpmGroup[]>
+}
+
+export type GpmSettingsDependencies = {
+    inputPort(): Promise<string>
+    selectRetry(): Promise<"retry" | "back">
+    selectGroup(groups: GpmGroup[]): Promise<string>
+    createClient(port: number): GpmSettingsClient
+    notifyError(message: string): void
+}
+
+export async function configureGpmBrowser(config: AppConfig, dependencies: GpmSettingsDependencies): Promise<AppConfig> {
+    while (true) {
+        const port = Number(await dependencies.inputPort())
+        const client = dependencies.createClient(port)
+        try {
+            await client.connect()
+            const groups = await client.listGroups()
+            if (groups.length === 0) throw new Error("GPM Login không có group để chọn")
+            const groupId = await dependencies.selectGroup(groups)
+            const group = groups.find(candidate => candidate.id === groupId)
+            if (!group) throw new Error("Group GPM Login đã chọn không hợp lệ")
+            return {
+                ...config,
+                browser: {
+                    ...config.browser,
+                    engine: "gpm",
+                    gpmPort: port,
+                    gpmGroupId: group.id,
+                    gpmGroupName: group.name
+                }
+            }
+        } catch (error) {
+            dependencies.notifyError(error instanceof Error ? error.message : "Không thể kết nối GPM Login")
+            if (await dependencies.selectRetry() === "back") return config
+        }
+    }
+}
+
+function defaultGpmSettingsDependencies(config: AppConfig): GpmSettingsDependencies {
+    return {
+        inputPort: () => input({
+            message: "Port GPM Login:",
+            default: String(config.browser.gpmPort),
+            validate: validatePort
+        }),
+        selectRetry: () => select({
+            message: chalk.yellow("Kết nối hoặc tải group GPM thất bại."),
+            choices: [
+                { name: "Thử lại (Retry)", value: "retry" },
+                { name: "Quay lại (Back)", value: "back" }
+            ]
+        }) as Promise<"retry" | "back">,
+        selectGroup: groups => select({
+            message: chalk.yellow("Chọn một group GPM Login:"),
+            choices: groups.map(group => ({ name: group.name, value: group.id }))
+        }),
+        createClient: port => new GpmLoginClient(port),
+        notifyError: message => console.log(chalk.red(`✗ ${message}`))
+    }
 }
