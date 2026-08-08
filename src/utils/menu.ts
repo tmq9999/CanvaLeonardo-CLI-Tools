@@ -3,7 +3,7 @@ import { select } from "@inquirer/prompts"
 import chalk from "chalk"
 import { clearScreen } from "./screen.js"
 import { loadConfig } from "../core/config.js"
-import { runBrowserRuntime } from "../core/script.js"
+import { runBrowserRuntime } from "../runtime/browser-runtime.js"
 
 export async function mainMenu(): Promise<void> {
     while (true) {

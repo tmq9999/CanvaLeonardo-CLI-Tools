@@ -1,5 +1,5 @@
-import type { AppConfig } from "./config.js"
-import { createRuntimeAdapter, ProxyManager, reportCleanupError, type RuntimeDependencies } from "./workers.js"
+import type { AppConfig } from "../core/config.js"
+import { createRuntimeAdapter, ProxyManager, reportCleanupError, type RuntimeDependencies } from "../core/runtime-adapters.js"
 import type { BrowserLaunchOptions, BrowserSession } from "../utils/browser.js"
 
 export type BrowserTask = (session: BrowserSession) => Promise<void>

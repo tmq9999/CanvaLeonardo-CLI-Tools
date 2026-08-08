@@ -6,11 +6,11 @@
     "browserVisible": true
   },
   "proxy": {
-    "mode": "none",
-    "filePath": ""
+    "mode": "file",
+    "filePath": "D:\\Javascript\\CanvaLeonardo\\proxy\\test.txt"
   },
   "browser": {
-    "engine": "camoufox",
+    "engine": "chromium",
     "gpmPort": 9495,
     "camoufox": {
       "mode": "custom",
