@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
 import { createRequire } from "node:module"
 import { logger } from "./logger.js"
+import { clearScreen } from "./screen.js"
 
 const require = createRequire(import.meta.url)
 
@@ -48,7 +49,7 @@ async function installCamoufox(): Promise<void> {
             )
         })
     })
-    console.clear()
+    clearScreen()
     logger.success("Đã cài đặt camoufox-js")
 }
 
@@ -82,7 +83,7 @@ async function updateCamoufox(): Promise<void> {
             }
         })
     })
-    console.clear()
+    clearScreen()
     logger.success("CamoufoxBrowser đã sẵn sàng!...")
 }
 
@@ -95,7 +96,7 @@ async function countdownClear(seconds = 3): Promise<void> {
         logger.countdown(`Hoàn tất update, tiếp tục sau ${i}s...`)
         await sleep(1000)
     }
-    console.clear()
+    clearScreen()
 }
 
 export async function checkUpdateTools(): Promise<void> {

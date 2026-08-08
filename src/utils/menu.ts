@@ -1,6 +1,7 @@
 import { settings } from "../cli/settings.js"
 import { select } from "@inquirer/prompts"
 import chalk from "chalk"
+import { clearScreen } from "./screen.js"
 
 export async function mainMenu(): Promise<void> {
     while (true) {
@@ -14,19 +15,19 @@ export async function mainMenu(): Promise<void> {
         })
 
         if (selected === "settings") {
-            console.clear()
+            clearScreen()
             await settings()
-            console.clear()
+            clearScreen()
             continue
         }
 
         if (selected === "start") {
-            console.clear()
+            clearScreen()
             console.log("Tính năng Bắt đầu chưa được triển khai.")
             continue
         }
 
-        console.clear()
+        clearScreen()
         return
     }
 }

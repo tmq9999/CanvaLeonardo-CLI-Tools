@@ -1,6 +1,7 @@
 import { checkbox, input, select } from "@inquirer/prompts";
 import chalk from "chalk";
 import { loadConfig, saveConfig, validateDelay, validatePort, validateThreads, validateTxtPath } from "../core/config.js";
+import { clearScreen } from "../utils/screen.js";
 export async function settings() {
     let config = await loadConfig();
     while (true) {
@@ -16,28 +17,25 @@ export async function settings() {
         if (selected === "back")
             return;
         if (selected === "general") {
-            clearConsole();
+            clearScreen();
             config = await generalSettings(config);
-            clearConsole();
+            clearScreen();
         }
         if (selected === "proxy") {
-            clearConsole();
+            clearScreen();
             config = await proxySettings(config);
-            clearConsole();
+            clearScreen();
         }
         if (selected === "browser") {
-            clearConsole();
+            clearScreen();
             config = await browserSettings(config);
-            clearConsole();
+            clearScreen();
         }
     }
 }
-function clearConsole() {
-    process.stdout.write("\x1b[2J\x1b[H");
-}
 async function persist(config, message) {
     await saveConfig(config);
-    clearConsole();
+    clearScreen();
     console.log(chalk.green(`✓ ${message}`));
     return config;
 }

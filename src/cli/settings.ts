@@ -9,6 +9,7 @@ import {
     validateThreads,
     validateTxtPath
 } from "../core/config.js"
+import { clearScreen } from "../utils/screen.js"
 
 export async function settings(): Promise<void> {
     let config = await loadConfig()
@@ -26,30 +27,26 @@ export async function settings(): Promise<void> {
 
         if (selected === "back") return
         if (selected === "general") {
-            clearConsole()
+            clearScreen()
             config = await generalSettings(config)
-            clearConsole()
+            clearScreen()
         }
         if (selected === "proxy") {
-            clearConsole()
+            clearScreen()
             config = await proxySettings(config)
-            clearConsole()
+            clearScreen()
         }
         if (selected === "browser") {
-            clearConsole()
+            clearScreen()
             config = await browserSettings(config)
-            clearConsole()
+            clearScreen()
         }
     }
 }
 
-function clearConsole(): void {
-    process.stdout.write("\x1b[2J\x1b[H")
-}
-
 async function persist(config: AppConfig, message: string): Promise<AppConfig> {
     await saveConfig(config)
-    clearConsole()
+    clearScreen()
     console.log(chalk.green(`✓ ${message}`))
     return config
 }

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { logger } from "./logger.js";
+import { clearScreen } from "./screen.js";
 const require = createRequire(import.meta.url);
 function isCamoufoxInstalled() {
     try {
@@ -31,7 +32,7 @@ async function installCamoufox() {
             reject(new Error(`npm install camoufox-js exited với code ${code}`));
         });
     });
-    console.clear();
+    clearScreen();
     logger.success("Đã cài đặt camoufox-js");
 }
 async function updateCamoufox() {
@@ -51,7 +52,7 @@ async function updateCamoufox() {
             }
         });
     });
-    console.clear();
+    clearScreen();
     logger.success("CamoufoxBrowser đã sẵn sàng!...");
 }
 function sleep(ms) {
@@ -62,7 +63,7 @@ async function countdownClear(seconds = 3) {
         logger.countdown(`Hoàn tất update, tiếp tục sau ${i}s...`);
         await sleep(1000);
     }
-    console.clear();
+    clearScreen();
 }
 export async function checkUpdateTools() {
     await installCamoufox();
