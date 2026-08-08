@@ -18,6 +18,8 @@
 - GPM connection/group-load failures block profile CRUD and return to retryable settings flow.
 - Proxy fields and proxy keys may be logged in full; proxy passwords are one-time passwords.
 - Existing unrelated `dist/index.js` changes must not be staged or overwritten.
+- A feature is not considered passed from static checks, `npm test`, or `npm run build` alone; every claim of success requires captured runtime responses from the real integration under test.
+- If a live dependency is unavailable, report the verification as blocked/unverified; never replace it with a fabricated result or treat a mock-only result as live success.
 
 ---
 
@@ -55,7 +57,7 @@
 - [ ] Write failing tests for all four forms, default `http://`, blank lines, invalid ports, and line-numbered errors.
 - [ ] Update config defaults so `browser.engine` is `chromium`; add nullable/optional `gpmGroupId` and `gpmGroupName` without breaking old `config.json` files.
 - [ ] Implement deterministic parsing: recognize a supported scheme only when the first token is a scheme, otherwise parse `host:port[:user:pass]`; reject malformed token counts instead of treating them as keys.
-- [ ] Run `npm test -- --test-name-pattern="config|proxy"` and `npm run build`; expected result is PASS.
+- [ ] Run unit/build checks as secondary diagnostics, then execute a real parser/runtime smoke flow with an actual `.txt` file and capture the returned normalized proxy objects and line errors. Do not mark the task passed from unit/build output alone.
 - [ ] Commit: `feat: add browser and proxy configuration contracts`.
 
 ### Task 2: Implement Kiot Proxy resolution
@@ -72,7 +74,7 @@
 - [ ] Implement one HTTP request helper against the documented Kiot endpoints, preserving Kiot `code`, `message`, and response metadata.
 - [ ] Convert `data.http` (`host:port`) to `NormalizedProxy` with `http` scheme and reject missing/invalid fields.
 - [ ] Ensure release is idempotent and report cleanup errors without replacing the primary task error.
-- [ ] Run `npm test -- --test-name-pattern="Kiot"`; expected result is PASS.
+- [ ] Run mocked tests as secondary diagnostics, then call the real Kiot endpoint with a user-provided valid key, capture the actual HTTP response, verify the resolved proxy fields, and call release while capturing its actual response. If credentials or network access are unavailable, mark live verification unverified.
 - [ ] Commit: `feat: add kiot proxy key resolver`.
 
 ### Task 3: Implement GPM Login client and profile scope
@@ -91,7 +93,7 @@
 - [ ] Implement connection health check against the configured GPM port and throw a typed connection error on network/API failure.
 - [ ] Implement group listing as a distinct operation; never convert a failed request into `[]`.
 - [ ] Implement profile CRUD/start/stop with explicit group scoping and return the profile start/CDP data needed by the browser adapter.
-- [ ] Run `npm test -- --test-name-pattern="GPM"`; expected result is PASS.
+- [ ] Run mocked tests as secondary diagnostics, then connect to the real GPM Login port, capture the health response, capture the real group list, select exactly one real group, and verify a real profile CRUD/start/stop round trip in that group. If GPM is unavailable, mark live verification unverified.
 - [ ] Commit: `feat: add gpm login client and group-scoped profiles`.
 
 ### Task 4: Implement shared browser adapters
@@ -111,7 +113,7 @@
 - [ ] Implement Chromium launch with Playwright and normalized proxy fields; use visible mode from config unless runtime overrides it.
 - [ ] Implement Camoufox launch mapping normalized proxy and Camoufox options without leaking Camoufox-specific branches into task code.
 - [ ] Implement GPM launch by starting the configured profile and connecting to its returned endpoint; stop the profile during close.
-- [ ] Run `npm test -- --test-name-pattern="browser"` and `npm run build`; expected result is PASS.
+- [ ] Run adapter tests/build as secondary diagnostics, then launch each enabled adapter in a real runtime: Chromium, Camoufox, and GPM when configured. Capture browser process/CDP response, navigate to a real diagnostic page, and verify the observed external IP matches the resolved proxy where proxy routing is in scope. Do not call an adapter passed without this evidence.
 - [ ] Commit: `feat: add shared browser adapters`.
 
 ### Task 5: Wire settings and runtime selection
@@ -131,7 +133,7 @@
 - [ ] On success load groups and present a single-select prompt; persist exactly one `groupId` and `groupName`.
 - [ ] Add runtime proxy-file loading and resolve direct proxies or Kiot keys before launch.
 - [ ] Replace browser-specific worker branches with the shared manager; guarantee `close()` and Kiot release in `finally`.
-- [ ] Run the full test suite and manually exercise menu flows with mocked GPM/Kiot endpoints.
+- [ ] Run the full test suite as secondary diagnostics, then manually exercise the actual menu/runtime with real GPM/Kiot services and a real proxy input file. Capture prompts, API responses, browser launch, navigation, cleanup, and Kiot release. Mocks may supplement debugging but cannot satisfy live acceptance.
 - [ ] Commit: `feat: wire browser and proxy runtime flows`.
 
 ### Task 6: Verification and documentation
@@ -141,6 +143,8 @@
 - Modify: `package.json` only if test scripts need a stable full-suite command.
 
 - [ ] Document all proxy line formats, Kiot key input, browser defaults, and GPM single-group setup.
-- [ ] Run `npm test`, `npm run build`, and a dry-run parser test using a temporary `.txt` file.
+- [ ] Run `npm test` and `npm run build` only as secondary diagnostics.
+- [ ] Perform an end-to-end live verification with real services: read a real `.txt` file, resolve a direct proxy and a Kiot key, launch the selected browser, navigate to a real external-IP endpoint, confirm the observed response, close the browser/profile, and confirm Kiot release response.
+- [ ] Store the exact commands, timestamps, redacted credentials, HTTP status/body fields, browser/CDP evidence, and observed results in the handoff. A missing response means `unverified`, not `passed`.
 - [ ] Verify the pre-existing `dist/index.js` change remains unstaged and unchanged by the feature work.
 - [ ] Commit: `docs: document browser and proxy setup`.
