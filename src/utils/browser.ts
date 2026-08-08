@@ -53,10 +53,15 @@ export class ChromiumPlaywrightAdapter implements BrowserAdapter {
     constructor(private readonly dependencies: { launch?: ChromiumLaunch } = {}) {}
 
     async launch(options: BrowserLaunchOptions): Promise<BrowserSession> {
-        const browser = await (this.dependencies.launch ?? chromium.launch)({
-            headless: !options.visible,
-            ...(options.proxy ? { proxy: playwrightProxy(options.proxy) } : {})
-        })
+        const browser = this.dependencies.launch
+            ? await this.dependencies.launch({
+                headless: !options.visible,
+                ...(options.proxy ? { proxy: playwrightProxy(options.proxy) } : {})
+            })
+            : await chromium.launch({
+                headless: !options.visible,
+                ...(options.proxy ? { proxy: playwrightProxy(options.proxy) } : {})
+            })
         return createSession(browser, { adapter: "chromium" })
     }
 
@@ -105,7 +110,9 @@ export class GpmLoginAdapter implements BrowserAdapter {
         const started = await this.client.startProfile(options.profileId)
         try {
             if (!started.cdpEndpoint) throw new Error("GPM profile did not return a CDP endpoint")
-            const browser = await (this.dependencies.connect ?? chromium.connectOverCDP)(started.cdpEndpoint)
+            const browser = await (this.dependencies.connect
+                ? this.dependencies.connect(started.cdpEndpoint)
+                : chromium.connectOverCDP(started.cdpEndpoint))
             return createSession(browser, {
                 adapter: "gpm",
                 profileId: options.profileId,

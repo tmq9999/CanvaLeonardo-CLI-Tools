@@ -55,6 +55,25 @@ test("Chromium adapter launches an isolated session with the normalized proxy", 
     })
 })
 
+test("Chromium adapter preserves the launcher receiver required by Playwright", async () => {
+    const browser = {
+        newContext: async () => ({ newPage: async () => ({}) }),
+        close: async () => undefined
+    }
+    let receiver: unknown
+    const dependencies = {
+        async launch() {
+            receiver = this
+            return browser
+        }
+    }
+    const adapter = new ChromiumPlaywrightAdapter(dependencies)
+
+    await adapter.launch({ visible: false })
+
+    assert.equal(receiver, dependencies)
+})
+
 test("Camoufox adapter maps browser settings and normalized proxy internally", async () => {
     const context = { newPage: async () => ({ id: "page-2" }) }
     const browser = { newContext: async () => context, close: async () => undefined }
@@ -126,6 +145,28 @@ test("GPM adapter starts its profile, connects to its CDP endpoint, then stops i
         profileId: "profile-1",
         cdpEndpoint: "ws://gpm.test/devtools/browser/1"
     })
+})
+
+test("GPM adapter preserves the injected CDP connector receiver", async () => {
+    const browser = {
+        newContext: async () => ({ newPage: async () => ({}) }),
+        close: async () => undefined
+    }
+    let receiver: unknown
+    const dependencies = {
+        async connect() {
+            receiver = this
+            return browser
+        }
+    }
+    const adapter = new GpmLoginAdapter({
+        startProfile: async () => ({ profile: { id: "profile-4" }, cdpEndpoint: "ws://gpm.test/devtools/browser/4" }),
+        stopProfile: async () => ({})
+    }, dependencies)
+
+    await adapter.launch({ visible: false, profileId: "profile-4" })
+
+    assert.equal(receiver, dependencies)
 })
 
 test("GPM adapter preserves the browser cleanup error while surfacing a profile-stop error", async () => {
