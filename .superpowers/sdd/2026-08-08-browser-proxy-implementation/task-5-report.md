@@ -49,9 +49,18 @@ Live GPM Login v1, localhost:9495
 GET /api/v1: reachable.
 GET /api/v1/groups?page=1&page_size=100: 9 groups; configured CanvaLeonardo group matched.
 Temporary profile: created, start returned websocket_debugging_url, stop succeeded, then soft-delete succeeded.
+
+Live GPM adapter browser capture, temporary profile
+GET https://api.ipify.org?format=json
+Adapter: gpm
+HTTP status: 200
+Observed external IP: 115.76.49.110
+CDP endpoint: received by adapter.
+Browser close/profile stop: completed.
+Temporary profile: soft-deleted.
 ```
 
-The temporary profiles used for the live checks were soft-deleted. No GPM browser navigation or external-IP capture was performed through the GPM-launched browser in this correction. Kiot resolve/release was not called with a live key in this correction.
+The temporary profiles used for the live checks were soft-deleted. The GPM profile used no configured proxy, so its observed IP confirms browser navigation through the GPM CDP adapter but not proxy routing through GPM. Kiot resolve/release was not called with a live key in this correction.
 
 ## Scope and concerns
 
