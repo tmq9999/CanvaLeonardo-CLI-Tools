@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 export type ProxyMode = "none" | "kiot" | "file"
 export type ServiceMail = "hotmail-outlook" | "adguard-mail" | "gmail"
-export type BrowserEngine = "gpm" | "camoufox"
+export type BrowserEngine = "chromium" | "camoufox" | "gpm"
 export type CamoufoxMode = "default" | "custom"
 
 export interface AppConfig {
@@ -20,6 +20,8 @@ export interface AppConfig {
     browser: {
         engine: BrowserEngine
         gpmPort: number
+        gpmGroupId?: string | null
+        gpmGroupName?: string | null
         camoufox: {
             mode: CamoufoxMode
             options: {
@@ -42,7 +44,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
     proxy: { mode: "none", filePath: "" },
     browser: {
-        engine: "gpm",
+        engine: "chromium",
         gpmPort: 9495,
         camoufox: {
             mode: "default",

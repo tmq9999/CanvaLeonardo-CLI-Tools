@@ -121,6 +121,7 @@ async function browserSettings(config: AppConfig): Promise<AppConfig> {
         message: chalk.yellow("Cài đặt trình duyệt\n"),
         default: config.browser.engine,
         choices: [
+            { name: "Chromium", value: "chromium" },
             { name: "GPM Login", value: "gpm" },
             { name: "Camoufox", value: "camoufox" },
             { name: "Quay lại (Back)", value: "back" }
@@ -136,6 +137,10 @@ async function browserSettings(config: AppConfig): Promise<AppConfig> {
         }))
         const updated = { ...config, browser: { ...config.browser, engine, gpmPort } }
         return persist(updated, "Đã lưu cài đặt GPM Login")
+    }
+
+    if (engine === "chromium") {
+        return persist({ ...config, browser: { ...config.browser, engine } }, "Đã lưu cài đặt Chromium")
     }
 
     const mode = await select({

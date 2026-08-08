@@ -15,6 +15,31 @@ test("loads defaults and persists updated config", async () => {
     } finally { await rm(dir, { recursive: true, force: true }) }
 })
 
+test("defaults to Chromium and preserves optional GPM group settings during migration", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "canvaleonardo-"))
+    const path = join(dir, "config.json")
+    try {
+        const defaults = await loadConfig(path)
+        assert.equal(defaults.browser.engine, "chromium")
+        assert.equal(defaults.browser.gpmGroupId, undefined)
+        assert.equal(defaults.browser.gpmGroupName, undefined)
+
+        await saveConfig({
+            ...DEFAULT_CONFIG,
+            browser: {
+                ...DEFAULT_CONFIG.browser,
+                engine: "gpm",
+                gpmGroupId: "group-42",
+                gpmGroupName: "Production"
+            }
+        }, path)
+        const migrated = await loadConfig(path)
+        assert.equal(migrated.browser.gpmGroupId, "group-42")
+        assert.equal(migrated.browser.gpmGroupName, "Production")
+        assert.equal(migrated.browser.camoufox.options.blockImage, false)
+    } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
 test("validates settings input", () => {
     assert.equal(validateThreads("1"), true)
     assert.notEqual(validateThreads("0"), true)
