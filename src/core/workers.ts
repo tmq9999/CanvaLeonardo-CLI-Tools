@@ -44,7 +44,14 @@ export class ProxyManager {
             ? await this.dependencies.readProxyFile(this.config.proxy.filePath)
             : await readFile(this.config.proxy.filePath, "utf8")
         const inputs = parseProxyFile(content)
-        return Promise.all(inputs.map(input => this.resolve(input)))
+        const proxies: ResolvedRuntimeProxy[] = []
+        try {
+            for (const input of inputs) proxies.push(await this.resolve(input))
+            return proxies
+        } catch (error) {
+            await this.releaseAll(proxies)
+            throw error
+        }
     }
 
     async releaseAll(proxies: ResolvedRuntimeProxy[]): Promise<void> {

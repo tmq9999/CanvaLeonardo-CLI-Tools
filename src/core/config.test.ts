@@ -30,12 +30,14 @@ test("defaults to Chromium and preserves optional GPM group settings during migr
                 ...DEFAULT_CONFIG.browser,
                 engine: "gpm",
                 gpmGroupId: "group-42",
-                gpmGroupName: "Production"
+                gpmGroupName: "Production",
+                gpmProfileId: "profile-42"
             }
         }, path)
         const migrated = await loadConfig(path)
         assert.equal(migrated.browser.gpmGroupId, "group-42")
         assert.equal(migrated.browser.gpmGroupName, "Production")
+        assert.equal(migrated.browser.gpmProfileId, "profile-42")
         assert.equal(migrated.browser.camoufox.options.blockImage, false)
     } finally { await rm(dir, { recursive: true, force: true }) }
 })

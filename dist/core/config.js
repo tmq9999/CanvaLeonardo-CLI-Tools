@@ -9,7 +9,7 @@ export const DEFAULT_CONFIG = {
     },
     proxy: { mode: "none", filePath: "" },
     browser: {
-        engine: "gpm",
+        engine: "chromium",
         gpmPort: 9495,
         camoufox: {
             mode: "default",

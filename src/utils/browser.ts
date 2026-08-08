@@ -7,6 +7,7 @@ export type BrowserPage = object
 
 export interface BrowserContext {
     newPage(): Promise<BrowserPage>
+    close(): Promise<void>
 }
 
 export interface BrowserClient {
@@ -113,7 +114,7 @@ export class GpmLoginAdapter implements BrowserAdapter {
             const browser = await (this.dependencies.connect
                 ? this.dependencies.connect(started.cdpEndpoint)
                 : chromium.connectOverCDP(started.cdpEndpoint))
-            return createSession(browser, {
+            return await createSession(browser, {
                 adapter: "gpm",
                 profileId: options.profileId,
                 cdpEndpoint: started.cdpEndpoint
@@ -163,7 +164,29 @@ async function createSession(
     browser: BrowserClient,
     cleanup: BrowserSession["cleanup"]
 ): Promise<BrowserSession> {
-    const context = await browser.newContext()
-    const page = await context.newPage()
-    return { browser, context, page, cleanup }
+    let context: BrowserContext | undefined
+    try {
+        context = await browser.newContext()
+        const page = await context.newPage()
+        return { browser, context, page, cleanup }
+    } catch (error) {
+        const cleanupErrors: unknown[] = []
+        if (context) {
+            try {
+                await context.close()
+            } catch (cleanupError) {
+                cleanupErrors.push(cleanupError)
+            }
+        }
+        try {
+            await browser.close()
+        } catch (cleanupError) {
+            cleanupErrors.push(cleanupError)
+        }
+
+        if (cleanupErrors.length > 0) {
+            throw new AggregateError([error, ...cleanupErrors], "Browser session setup cleanup failed")
+        }
+        throw error
+    }
 }

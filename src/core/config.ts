@@ -22,6 +22,7 @@ export interface AppConfig {
         gpmPort: number
         gpmGroupId?: string | null
         gpmGroupName?: string | null
+        gpmProfileId?: string | null
         camoufox: {
             mode: CamoufoxMode
             options: {

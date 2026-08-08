@@ -1,1 +1,113 @@
-export {};
+import { isIP } from "node:net";
+const API_BASE_URL = "https://api.kiotproxy.com";
+export class KiotProxyError extends Error {
+    code;
+    metadata;
+    constructor(message, code, metadata = {}) {
+        super(message);
+        this.code = code;
+        this.metadata = metadata;
+        this.name = "KiotProxyError";
+    }
+}
+export class KiotProxyClient {
+    fetchImpl;
+    options;
+    releasedKeys = new Set();
+    constructor(fetchImpl = fetch, options = {}) {
+        this.fetchImpl = fetchImpl;
+        this.options = options;
+    }
+    async current(key) {
+        return this.requestProxy("/api/v1/proxies/current", key);
+    }
+    async newProxy(key, region) {
+        return this.requestProxy("/api/v1/proxies/new", key, region);
+    }
+    async resolve(input, options = {}) {
+        if (input.kind !== "kiot-key") {
+            throw new KiotProxyError("Kiot resolver requires a ProxyInput with kind kiot-key");
+        }
+        return options.region ? this.newProxy(input.value, options.region) : this.current(input.value);
+    }
+    async release(key) {
+        if (this.releasedKeys.has(key))
+            return;
+        this.releasedKeys.add(key);
+        try {
+            await this.request("/api/v1/proxies/out", key);
+        }
+        catch (error) {
+            this.options.onCleanupError?.(error);
+        }
+    }
+    async requestProxy(path, key, region) {
+        const response = await this.request(path, key, region);
+        const metadata = response.data ?? {};
+        const http = metadata.http;
+        if (typeof http !== "string" || !http.trim()) {
+            throw new KiotProxyError("Kiot response data.http is required", response.code, metadata);
+        }
+        return {
+            proxy: normalizeKiotHttp(http, response.code, metadata),
+            ...(response.code === undefined ? {} : { code: response.code }),
+            ...(typeof response.message === "string" ? { message: response.message } : {}),
+            metadata
+        };
+    }
+    async request(path, key, region) {
+        const query = new URLSearchParams({ key });
+        if (region)
+            query.set("region", region);
+        let httpResponse;
+        try {
+            httpResponse = await this.fetchImpl(`${API_BASE_URL}${path}?${query}`);
+        }
+        catch (error) {
+            throw new KiotProxyError(error instanceof Error ? error.message : "Kiot request failed");
+        }
+        let body;
+        try {
+            body = await httpResponse.json();
+        }
+        catch {
+            throw new KiotProxyError(`Kiot HTTP ${httpResponse.status} returned invalid JSON`);
+        }
+        const response = isKiotApiResponse(body) ? body : {};
+        const metadata = response.data ?? {};
+        if (!httpResponse.ok) {
+            throw new KiotProxyError(typeof response.message === "string" ? response.message : `Kiot HTTP ${httpResponse.status}`, response.code, metadata);
+        }
+        if (response.success !== true) {
+            throw new KiotProxyError(typeof response.message === "string" ? response.message : "Kiot API request failed", response.code, metadata);
+        }
+        return response;
+    }
+}
+function isKiotApiResponse(value) {
+    return typeof value === "object" && value !== null;
+}
+function normalizeKiotHttp(http, code, metadata) {
+    const match = /^([^:\s]+):(\d+)$/.exec(http.trim());
+    if (!match)
+        throw new KiotProxyError("Kiot data.http must use host:port", code, metadata);
+    const port = Number(match[2]);
+    if (port < 1 || port > 65535) {
+        throw new KiotProxyError("Kiot data.http port must be an integer from 1 to 65535", code, metadata);
+    }
+    if (!isValidProxyHost(match[1])) {
+        throw new KiotProxyError("Kiot data.http host is invalid", code, metadata);
+    }
+    return { scheme: "http", host: match[1], port, source: http };
+}
+function isValidProxyHost(host) {
+    if (isIP(host) === 4)
+        return true;
+    if (/^\d+(?:\.\d+){3}$/.test(host))
+        return false;
+    if (host.length > 253)
+        return false;
+    return host.split(".").every((label) => (label.length > 0 &&
+        label.length <= 63 &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)));
+}

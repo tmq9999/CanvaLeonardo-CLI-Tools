@@ -98,4 +98,54 @@ test("runtime releases resolved Kiot keys when adapter setup fails without hidin
     assert.deepEqual(reported, [releaseError])
 })
 
-const context = { newPage: async () => ({}) }
+test("runtime releases earlier Kiot keys when a later key fails to resolve", async () => {
+    const resolveError = new Error("second Kiot key failed")
+    const released: string[] = []
+
+    await assert.rejects(runBrowserRuntime({
+        ...DEFAULT_CONFIG,
+        proxy: { mode: "kiot", filePath: "keys.txt" }
+    }, async () => undefined, {
+        readProxyFile: async () => "kiot-key-1\nkiot-key-2\n",
+        createKiotClient: () => ({
+            resolve: async input => {
+                if (input.value === "kiot-key-2") throw resolveError
+                return { proxy: { scheme: "http", host: "kiot.proxy.test", port: 3128, source: input.value } }
+            },
+            release: async key => { released.push(key) }
+        })
+    }), resolveError)
+
+    assert.deepEqual(released, ["kiot-key-1"])
+})
+
+test("runtime passes the persisted GPM profile ID to adapter launch", async () => {
+    const launched: unknown[] = []
+    await runBrowserRuntime({
+        ...DEFAULT_CONFIG,
+        browser: {
+            ...DEFAULT_CONFIG.browser,
+            engine: "gpm",
+            gpmGroupId: "group-42",
+            gpmGroupName: "Production",
+            gpmProfileId: "profile-42"
+        }
+    }, async () => undefined, {
+        createAdapter: () => ({
+            launch: async options => {
+                launched.push(options)
+                return {
+                    browser: { newContext: async () => context, close: async () => undefined },
+                    context,
+                    page: {},
+                    cleanup: { adapter: "gpm", profileId: options.profileId }
+                }
+            },
+            close: async () => undefined
+        })
+    })
+
+    assert.deepEqual(launched, [{ visible: true, profileId: "profile-42" }])
+})
+
+const context = { newPage: async () => ({}), close: async () => undefined }

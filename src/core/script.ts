@@ -21,7 +21,11 @@ export async function runBrowserRuntime(
     try {
         const adapter = createRuntimeAdapter(config, options)
         for (const resolved of proxies) {
-            const session = await adapter.launch(buildBrowserLaunchOptions(config, resolved.proxy, options.profileId))
+            const session = await adapter.launch(buildBrowserLaunchOptions(
+                config,
+                resolved.proxy,
+                options.profileId ?? config.browser.gpmProfileId ?? undefined
+            ))
             try {
                 await task(session)
             } catch (error) {

@@ -192,6 +192,7 @@ export type GpmSettingsDependencies = {
     inputPort(): Promise<string>
     selectRetry(): Promise<"retry" | "back">
     selectGroup(groups: GpmGroup[]): Promise<string>
+    inputProfileId(group: GpmGroup): Promise<string>
     createClient(port: number): GpmSettingsClient
     notifyError(message: string): void
 }
@@ -207,6 +208,8 @@ export async function configureGpmBrowser(config: AppConfig, dependencies: GpmSe
             const groupId = await dependencies.selectGroup(groups)
             const group = groups.find(candidate => candidate.id === groupId)
             if (!group) throw new Error("Group GPM Login đã chọn không hợp lệ")
+            const profileId = (await dependencies.inputProfileId(group)).trim()
+            if (!profileId) throw new Error("GPM Login cần một profile ID để khởi chạy")
             return {
                 ...config,
                 browser: {
@@ -214,7 +217,8 @@ export async function configureGpmBrowser(config: AppConfig, dependencies: GpmSe
                     engine: "gpm",
                     gpmPort: port,
                     gpmGroupId: group.id,
-                    gpmGroupName: group.name
+                    gpmGroupName: group.name,
+                    gpmProfileId: profileId
                 }
             }
         } catch (error) {
@@ -241,6 +245,11 @@ function defaultGpmSettingsDependencies(config: AppConfig): GpmSettingsDependenc
         selectGroup: groups => select({
             message: chalk.yellow("Chọn một group GPM Login:"),
             choices: groups.map(group => ({ name: group.name, value: group.id }))
+        }),
+        inputProfileId: group => input({
+            message: `Profile ID trong group ${group.name}:`,
+            default: config.browser.gpmProfileId ?? undefined,
+            validate: value => value.trim() ? true : "Profile ID không được để trống"
         }),
         createClient: port => new GpmLoginClient(port),
         notifyError: message => console.log(chalk.red(`✗ ${message}`))

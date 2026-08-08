@@ -57,7 +57,7 @@ test("Chromium adapter launches an isolated session with the normalized proxy", 
 
 test("Chromium adapter preserves the launcher receiver required by Playwright", async () => {
     const browser = {
-        newContext: async () => ({ newPage: async () => ({}) }),
+        newContext: async () => ({ newPage: async () => ({}), close: async () => undefined }),
         close: async () => undefined
     }
     let receiver: unknown
@@ -74,8 +74,42 @@ test("Chromium adapter preserves the launcher receiver required by Playwright", 
     assert.equal(receiver, dependencies)
 })
 
+test("Chromium adapter closes a partially created context and browser when page creation fails", async () => {
+    const pageError = new Error("page creation failed")
+    const events: string[] = []
+    const context = {
+        newPage: async () => {
+            events.push("new-page")
+            throw pageError
+        },
+        close: async () => { events.push("context-close") }
+    }
+    const browser = {
+        newContext: async () => context,
+        close: async () => { events.push("browser-close") }
+    }
+    const adapter = new ChromiumPlaywrightAdapter({ launch: async () => browser })
+
+    await assert.rejects(adapter.launch({ visible: false }), pageError)
+    assert.deepEqual(events, ["new-page", "context-close", "browser-close"])
+})
+
+test("Chromium adapter closes the browser when context creation fails", async () => {
+    const contextError = new Error("context creation failed")
+    const events: string[] = []
+    const adapter = new ChromiumPlaywrightAdapter({
+        launch: async () => ({
+            newContext: async () => { throw contextError },
+            close: async () => { events.push("browser-close") }
+        })
+    })
+
+    await assert.rejects(adapter.launch({ visible: false }), contextError)
+    assert.deepEqual(events, ["browser-close"])
+})
+
 test("Camoufox adapter maps browser settings and normalized proxy internally", async () => {
-    const context = { newPage: async () => ({ id: "page-2" }) }
+    const context = { newPage: async () => ({ id: "page-2" }), close: async () => undefined }
     const browser = { newContext: async () => context, close: async () => undefined }
     let receivedOptions: unknown
     const adapter = new CamoufoxAdapter({
@@ -110,7 +144,7 @@ test("Camoufox adapter maps browser settings and normalized proxy internally", a
 
 test("GPM adapter starts its profile, connects to its CDP endpoint, then stops it after the browser", async () => {
     const events: string[] = []
-    const context = { newPage: async () => ({ id: "page-3" }) }
+    const context = { newPage: async () => ({ id: "page-3" }), close: async () => undefined }
     const browser = {
         newContext: async () => context,
         close: async () => { events.push("browser-close") }
@@ -149,7 +183,7 @@ test("GPM adapter starts its profile, connects to its CDP endpoint, then stops i
 
 test("GPM adapter preserves the injected CDP connector receiver", async () => {
     const browser = {
-        newContext: async () => ({ newPage: async () => ({}) }),
+        newContext: async () => ({ newPage: async () => ({}), close: async () => undefined }),
         close: async () => undefined
     }
     let receiver: unknown
@@ -181,7 +215,7 @@ test("GPM adapter preserves the browser cleanup error while surfacing a profile-
         }
     }, {
         connect: async () => ({
-            newContext: async () => ({ newPage: async () => ({}) }),
+            newContext: async () => ({ newPage: async () => ({}), close: async () => undefined }),
             close: async () => { throw browserCloseError }
         })
     })
@@ -211,4 +245,40 @@ test("GPM adapter stops a started profile without replacing a CDP connection err
 
     await assert.rejects(adapter.launch({ visible: false, profileId: "profile-3" }), connectionError)
     assert.deepEqual(stopped, ["profile-3"])
+})
+
+test("GPM adapter closes connected browser resources and stops the profile when page creation fails", async () => {
+    const pageError = new Error("GPM page creation failed")
+    const events: string[] = []
+    const context = {
+        newPage: async () => {
+            events.push("new-page")
+            throw pageError
+        },
+        close: async () => { events.push("context-close") }
+    }
+    const adapter = new GpmLoginAdapter({
+        startProfile: async profileId => {
+            events.push(`start:${profileId}`)
+            return { profile: { id: profileId }, cdpEndpoint: "ws://gpm.test/devtools/browser/5" }
+        },
+        stopProfile: async profileId => {
+            events.push(`stop:${profileId}`)
+            return undefined
+        }
+    }, {
+        connect: async () => ({
+            newContext: async () => context,
+            close: async () => { events.push("browser-close") }
+        })
+    })
+
+    await assert.rejects(adapter.launch({ visible: false, profileId: "profile-5" }), pageError)
+    assert.deepEqual(events, [
+        "start:profile-5",
+        "new-page",
+        "context-close",
+        "browser-close",
+        "stop:profile-5"
+    ])
 })

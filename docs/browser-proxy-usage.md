@@ -6,9 +6,9 @@ The application launches Chromium through Playwright by default. Camoufox and GP
 
 - **Chromium** is the default for new and migrated `config.json` files.
 - **Camoufox** supports Default mode or Custom mode. Custom mode can enable GeoIP, Humanize, block WebRTC, block WebGL, and block images.
-- **GPM Login** asks for its API port, connects immediately, then loads groups. Select exactly one group. A connection or group-load error keeps the previous saved configuration and offers Retry or Back.
+- **GPM Login** asks for its API port, connects immediately, then loads groups. Select exactly one group and enter the profile ID to launch from that group. A connection, group-load, or blank-profile error keeps the previous saved configuration and offers Retry or Back.
 
-GPM browser runs require a task flow that supplies a GPM profile ID. The shared runtime does not create, update, or delete profiles by itself.
+The selected group and profile ID are persisted in `config.json`. Choosing **Start** passes that saved profile ID to GPM Login; the shared runtime does not create, update, or delete profiles by itself.
 
 ## Configure proxy input
 
@@ -33,7 +33,7 @@ A non-empty line without `:` is treated as a Kiot Proxy key. Before launch, the 
 
 ## Runtime lifecycle
 
-Choosing **Start** loads `config.json`, reads the configured proxy file, resolves every direct proxy or Kiot key, then launches the selected browser through the shared adapter interface. Browser sessions are closed in `finally`; Kiot release is also attempted in `finally`. Cleanup errors are reported without replacing the task's primary error.
+Choosing **Start** loads `config.json`, reads the configured proxy file, resolves every direct proxy or Kiot key, then launches the selected browser through the shared adapter interface. Browser sessions are closed in `finally`; partially created browser sessions and partially resolved Kiot key sets are also cleaned up. GPM stops a started profile after any later launch failure. Cleanup errors are reported without replacing the task's primary error.
 
 ## Verification status
 

@@ -28,7 +28,7 @@ export function clearScreen() {
     console.log();
     console.log(chalk.redBright.bold(center("CLI TOOLS  VER 0.1.0")));
     console.log();
-    console.log(chalk.blueBright.bold(center("https://github.com/tmq9999/CanvaLeonardo-CLI-Tools.git")));
-    console.log(chalk.gray("-----------------------------------------------------------------"));
+    console.log(chalk.blueBright.bold(center("https://github.com/tmq9999/CanvaLeonardo-CLI-Tools.git\n")));
+    console.log(chalk.greenBright("-----------------------------------------------------------------------------------------------------------------------"));
     console.log();
 }

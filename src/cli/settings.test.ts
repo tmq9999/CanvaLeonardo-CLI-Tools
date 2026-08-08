@@ -18,6 +18,10 @@ test("GPM settings retries a failed connection then persists exactly one loaded 
             ])
             return "group-b"
         },
+        inputProfileId: async group => {
+            assert.deepEqual(group, { id: "group-b", name: "Beta" })
+            return "  profile-42  "
+        },
         createClient: port => {
             ports.push(port)
             return {
@@ -40,7 +44,8 @@ test("GPM settings retries a failed connection then persists exactly one loaded 
         engine: "gpm",
         gpmPort: 19995,
         gpmGroupId: "group-b",
-        gpmGroupName: "Beta"
+        gpmGroupName: "Beta",
+        gpmProfileId: "profile-42"
     })
 })
 
@@ -49,6 +54,7 @@ test("GPM settings returns the prior configuration when group loading cannot be 
         inputPort: async () => "9495",
         selectRetry: async () => "back",
         selectGroup: async () => "unused",
+        inputProfileId: async () => "unused",
         createClient: () => ({
             connect: async () => undefined,
             listGroups: async () => { throw new Error("groups unavailable") }
@@ -57,4 +63,22 @@ test("GPM settings returns the prior configuration when group loading cannot be 
     })
 
     assert.equal(config, DEFAULT_CONFIG)
+})
+
+test("GPM settings rejects a blank profile ID instead of saving an unlaunchable configuration", async () => {
+    const notices: string[] = []
+    const config = await configureGpmBrowser(DEFAULT_CONFIG, {
+        inputPort: async () => "9495",
+        selectRetry: async () => "back",
+        selectGroup: async () => "group-a",
+        inputProfileId: async () => "   ",
+        createClient: () => ({
+            connect: async () => undefined,
+            listGroups: async () => [{ id: "group-a", name: "Alpha" }]
+        }),
+        notifyError: message => notices.push(message)
+    })
+
+    assert.equal(config, DEFAULT_CONFIG)
+    assert.deepEqual(notices, ["GPM Login cần một profile ID để khởi chạy"])
 })
