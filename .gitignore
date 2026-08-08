@@ -5,6 +5,7 @@
 #Documents
 docs/
 .docs/
+.worktrees/
 
 #Module - Không Commit
 node_modules/
