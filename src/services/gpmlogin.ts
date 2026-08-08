@@ -63,15 +63,15 @@ export class GpmLoginClient {
     }
 
     async connect(): Promise<Record<string, unknown>> {
-        return this.requestData("/api/v3/health", "connect") as Promise<Record<string, unknown>>
+        return this.requestData("/api/v1", "connect") as Promise<Record<string, unknown>>
     }
 
     async listGroups(): Promise<GpmGroup[]> {
-        const data = await this.requestData("/api/v3/groups", "listGroups")
+        const data = await this.requestData("/api/v1/groups?page=1&page_size=100", "listGroups")
         const groups = Array.isArray(data)
             ? data
-            : isRecord(data) && Array.isArray(data.groups)
-                ? data.groups
+            : isRecord(data) && Array.isArray(data.data)
+                ? data.data
                 : undefined
         if (!groups || !groups.every(isGroup)) {
             throw new GpmConnectionError("GPM groups response has an invalid shape", "listGroups")
@@ -80,32 +80,34 @@ export class GpmLoginClient {
     }
 
     async createProfile(input: GpmProfileInput): Promise<GpmProfile> {
-        return this.requestProfile("/api/v3/profiles", "POST", input)
+        return this.requestProfile("/api/v1/profiles/create", "POST", input)
     }
 
     async updateProfile(id: string, input: GpmProfileInput): Promise<GpmProfile> {
-        return this.requestProfile(`/api/v3/profiles/${encodeURIComponent(id)}`, "PUT", input)
+        return this.requestProfile(`/api/v1/profiles/update/${encodeURIComponent(id)}`, "POST", input)
     }
 
     async deleteProfile(id: string): Promise<GpmProfile> {
         const group = this.requireGroup()
         return this.requestData(
-            `/api/v3/profiles/${encodeURIComponent(id)}?${new URLSearchParams({ group_id: group.groupId })}`,
-            "profile",
-            { method: "DELETE" }
+            `/api/v1/profiles/delete/${encodeURIComponent(id)}`,
+            "profile"
         ) as Promise<GpmProfile>
     }
 
     async startProfile(id: string): Promise<GpmProfileStart> {
-        const profile = await this.requestProfile(`/api/v3/profiles/${encodeURIComponent(id)}/start`, "POST", {})
+        this.requireGroup()
+        const profile = await this.requestData(`/api/v1/profiles/start/${encodeURIComponent(id)}`, "profile") as GpmProfile
         return { profile, ...(cdpEndpointFrom(profile) ? { cdpEndpoint: cdpEndpointFrom(profile) } : {}) }
     }
 
-    async stopProfile(id: string): Promise<GpmProfile> {
-        return this.requestProfile(`/api/v3/profiles/${encodeURIComponent(id)}/stop`, "POST", {})
+    async stopProfile(id: string): Promise<unknown> {
+        this.requireGroup()
+        await this.requestData(`/api/v1/profiles/stop/${encodeURIComponent(id)}`, "profile")
+        return undefined
     }
 
-    private async requestProfile(path: string, method: "POST" | "PUT", input: GpmProfileInput): Promise<GpmProfile> {
+    private async requestProfile(path: string, method: "POST", input: GpmProfileInput): Promise<GpmProfile> {
         const group = this.requireGroup()
         const { group_id: _ignoredGroupId, ...profileInput } = input
         const data = await this.requestData(path, "profile", {
@@ -158,7 +160,7 @@ function isGroup(value: unknown): value is GpmGroup {
 }
 
 function cdpEndpointFrom(profile: GpmProfile): string | undefined {
-    for (const key of ["wsEndpoint", "ws_endpoint", "wsUrl", "ws_url", "cdpEndpoint", "cdp_endpoint"]) {
+    for (const key of ["websocket_debugging_url", "wsEndpoint", "ws_endpoint", "wsUrl", "ws_url", "cdpEndpoint", "cdp_endpoint"]) {
         if (typeof profile[key] === "string" && profile[key].trim()) return profile[key] as string
     }
     return undefined

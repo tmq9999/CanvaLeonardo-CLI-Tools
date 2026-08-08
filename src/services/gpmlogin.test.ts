@@ -36,7 +36,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 const settings: GpmSettings = { port: 19995, groupId: "group-selected", groupName: "Selected group" }
 
-test("connect checks the configured GPM health endpoint", async () => {
+test("connect checks the documented GPM v1 endpoint", async () => {
     const requested: string[] = []
     const client = createClient(19995, async (input) => {
         requested.push(String(input))
@@ -44,7 +44,7 @@ test("connect checks the configured GPM health endpoint", async () => {
     })
 
     assert.deepEqual(await client.connect(), { version: "3.0" })
-    assert.deepEqual(requested, ["http://127.0.0.1:19995/api/v3/health"])
+    assert.deepEqual(requested, ["http://127.0.0.1:19995/api/v1"])
 })
 
 test("connect throws a typed connection error when GPM cannot be reached", async () => {
@@ -58,15 +58,26 @@ test("connect throws a typed connection error when GPM cannot be reached", async
     })
 })
 
-test("listGroups returns the API groups and keeps a group failure visible", async () => {
-    const successfulClient = createClient(19995, async () => jsonResponse({
+test("listGroups unwraps the documented paginated groups response", async () => {
+    const requested: string[] = []
+    const successfulClient = createClient(19995, async (input) => {
+        requested.push(String(input))
+        return jsonResponse({
         success: true,
-        data: [{ id: "group-one", name: "One" }, { id: "group-two", name: "Two" }]
-    }))
+        data: {
+            current_page: 1,
+            per_page: 100,
+            total: 2,
+            last_page: 1,
+            data: [{ id: "group-one", name: "One" }, { id: "group-two", name: "Two" }]
+        }
+    })
+    })
     assert.deepEqual(await successfulClient.listGroups(), [
         { id: "group-one", name: "One" },
         { id: "group-two", name: "Two" }
     ])
+    assert.deepEqual(requested, ["http://127.0.0.1:19995/api/v1/groups?page=1&page_size=100"])
 
     const failedClient = createClient(19995, async () => jsonResponse({ message: "Groups unavailable" }, 503))
     await assert.rejects(failedClient.listGroups(), (error: unknown) => isConnectionError(error, "listGroups", 503))
@@ -75,6 +86,8 @@ test("listGroups returns the API groups and keeps a group failure visible", asyn
 test("profile operations require exactly one configured group", async () => {
     const client = createClient(19995, async () => jsonResponse({ success: true, data: {} }))
     await assert.rejects(client.createProfile({ name: "Unscoped" }), gpm.GpmProfileScopeError)
+    await assert.rejects(client.startProfile("profile-1"), gpm.GpmProfileScopeError)
+    await assert.rejects(client.stopProfile("profile-1"), gpm.GpmProfileScopeError)
 
     client.setGroup(settings)
     assert.throws(
@@ -91,8 +104,11 @@ test("profile CRUD and lifecycle requests use the selected group ID", async () =
             method: init?.method ?? "GET",
             body: init?.body ? JSON.parse(String(init.body)) : undefined
         })
-        if (String(input).endsWith("/start")) {
-            return jsonResponse({ success: true, data: { id: "profile-1", wsEndpoint: "ws://127.0.0.1:9222/devtools/browser/abc" } })
+        if (String(input).includes("/profiles/start/")) {
+            return jsonResponse({ success: true, data: { id: "profile-1", websocket_debugging_url: "ws://127.0.0.1:9222/devtools/browser/abc" } })
+        }
+        if (String(input).includes("/profiles/stop/")) {
+            return jsonResponse({ success: true, data: null })
         }
         return jsonResponse({ success: true, data: { id: "profile-1", name: "Scoped profile" } })
     })
@@ -102,14 +118,14 @@ test("profile CRUD and lifecycle requests use the selected group ID", async () =
     await client.updateProfile("profile-1", { name: "Renamed", group_id: "attempted-override" })
     await client.deleteProfile("profile-1")
     const started = await client.startProfile("profile-1")
-    await client.stopProfile("profile-1")
+    assert.equal(await client.stopProfile("profile-1"), undefined)
 
     assert.equal(started.cdpEndpoint, "ws://127.0.0.1:9222/devtools/browser/abc")
     assert.deepEqual(requests, [
-        { url: "http://127.0.0.1:19995/api/v3/profiles", method: "POST", body: { name: "Scoped profile", group_id: "group-selected" } },
-        { url: "http://127.0.0.1:19995/api/v3/profiles/profile-1", method: "PUT", body: { name: "Renamed", group_id: "group-selected" } },
-        { url: "http://127.0.0.1:19995/api/v3/profiles/profile-1?group_id=group-selected", method: "DELETE", body: undefined },
-        { url: "http://127.0.0.1:19995/api/v3/profiles/profile-1/start", method: "POST", body: { group_id: "group-selected" } },
-        { url: "http://127.0.0.1:19995/api/v3/profiles/profile-1/stop", method: "POST", body: { group_id: "group-selected" } }
+        { url: "http://127.0.0.1:19995/api/v1/profiles/create", method: "POST", body: { name: "Scoped profile", group_id: "group-selected" } },
+        { url: "http://127.0.0.1:19995/api/v1/profiles/update/profile-1", method: "POST", body: { name: "Renamed", group_id: "group-selected" } },
+        { url: "http://127.0.0.1:19995/api/v1/profiles/delete/profile-1", method: "GET", body: undefined },
+        { url: "http://127.0.0.1:19995/api/v1/profiles/start/profile-1", method: "GET", body: undefined },
+        { url: "http://127.0.0.1:19995/api/v1/profiles/stop/profile-1", method: "GET", body: undefined }
     ])
 })

@@ -25,9 +25,33 @@ git diff --check
 Exit 0: no whitespace errors.
 ```
 
-## Live verification status
+## GPM v1 contract correction and live verification
 
-Unverified. This task did not connect to a real GPM Login port, call Kiot Proxy with a real key, launch Chromium/Camoufox/GPM, navigate a browser, capture API/CDP responses, or capture external-IP evidence. The automated results above use injected adapters and clients only.
+The original client used undocumented `/api/v3` endpoints. It was corrected to the local `docs/gpm.md` v1 contract:
+
+- `GET /api/v1` for connection verification;
+- `GET /api/v1/groups?page=1&page_size=100`, unwrapping its pagination `data` array;
+- documented v1 profile create/update/delete/start/stop endpoints;
+- `websocket_debugging_url` as the CDP endpoint field; and
+- group selection is enforced for every profile operation, including start/stop.
+
+```text
+node --import tsx --test src/services/gpmlogin.test.ts
+Exit 0: 5 passing, 0 failing.
+
+npm test
+Exit 0: 33 passing, 0 failing.
+
+npm run build
+Exit 0: tsc completed successfully.
+
+Live GPM Login v1, localhost:9495
+GET /api/v1: reachable.
+GET /api/v1/groups?page=1&page_size=100: 9 groups; configured CanvaLeonardo group matched.
+Temporary profile: created, start returned websocket_debugging_url, stop succeeded, then soft-delete succeeded.
+```
+
+The temporary profiles used for the live checks were soft-deleted. No GPM browser navigation or external-IP capture was performed through the GPM-launched browser in this correction. Kiot resolve/release was not called with a live key in this correction.
 
 ## Scope and concerns
 
