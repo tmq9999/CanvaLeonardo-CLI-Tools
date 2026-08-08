@@ -1,4 +1,6 @@
+import { isIP } from "node:net"
 import type { NormalizedProxy } from "../utils/proxy.js"
+import type { ProxyInput } from "../utils/proxy.js"
 
 const API_BASE_URL = "https://api.kiotproxy.com"
 
@@ -53,8 +55,11 @@ export class KiotProxyClient {
         return this.requestProxy("/api/v1/proxies/new", key, region)
     }
 
-    async resolve(key: string, options: ResolveKiotProxyOptions = {}): Promise<ResolvedKiotProxy> {
-        return options.region ? this.newProxy(key, options.region) : this.current(key)
+    async resolve(input: ProxyInput, options: ResolveKiotProxyOptions = {}): Promise<ResolvedKiotProxy> {
+        if (input.kind !== "kiot-key") {
+            throw new KiotProxyError("Kiot resolver requires a ProxyInput with kind kiot-key")
+        }
+        return options.region ? this.newProxy(input.value, options.region) : this.current(input.value)
     }
 
     async release(key: string): Promise<void> {
@@ -134,6 +139,21 @@ function normalizeKiotHttp(http: string, code: unknown, metadata: KiotResponseDa
     if (port < 1 || port > 65535) {
         throw new KiotProxyError("Kiot data.http port must be an integer from 1 to 65535", code, metadata)
     }
+    if (!isValidProxyHost(match[1])) {
+        throw new KiotProxyError("Kiot data.http host is invalid", code, metadata)
+    }
 
     return { scheme: "http", host: match[1], port, source: http }
+}
+
+function isValidProxyHost(host: string): boolean {
+    if (isIP(host) === 4) return true
+    if (/^\d+(?:\.\d+){3}$/.test(host)) return false
+    if (host.length > 253) return false
+
+    return host.split(".").every((label) => (
+        label.length > 0 &&
+        label.length <= 63 &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
+    ))
 }
