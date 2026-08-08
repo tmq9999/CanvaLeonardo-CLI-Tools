@@ -1,0 +1,26 @@
+{
+  "general": {
+    "parallelThreads": 1,
+    "operationDelaySeconds": 0.5,
+    "serviceMail": "hotmail-outlook",
+    "browserVisible": true
+  },
+  "proxy": {
+    "mode": "none",
+    "filePath": ""
+  },
+  "browser": {
+    "engine": "camoufox",
+    "gpmPort": 9495,
+    "camoufox": {
+      "mode": "custom",
+      "options": {
+        "geoip": false,
+        "humanize": false,
+        "blockWebRTC": false,
+        "blockWebGL": false,
+        "blockImage": false
+      }
+    }
+  }
+}

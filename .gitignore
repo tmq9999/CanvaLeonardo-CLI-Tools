@@ -1,0 +1,12 @@
+# Secrets — KHÔNG BAO GIỜ commit
+.env
+*.env
+
+#Documents
+docs/
+.docs/
+
+#Module - Không Commit
+node_modules/
+.node_modules/
+
