@@ -55,20 +55,24 @@ Các key đã dùng trong phiên được release tối đa một lần khi kế
 - Cleanup failure không che khuất lỗi chính.
 - Nhấn Enter sau khi preview: đóng toàn bộ browser và release resource rồi quay lại menu.
 
-## Kiểm thử
+## Kiểm thử và verification bắt buộc
 
-Unit tests phải bao phủ:
+Verification phải chạy live end-to-end với stack thật và browser thật. Không được dùng `npm test` hoặc `npm run build` làm bước xác nhận hoàn thành; hai lệnh này bị cấm trong quy trình verification của feature này.
 
-- `canva.ts` truyền đúng invite URL tới page;
-- số worker bằng `parallelThreads`;
-- round-robin khi proxy ít hơn và nhiều hơn worker;
-- Kiot đổi proxy mới khi được phép;
-- Kiot fallback current khi `ttc > 0` hoặc countdown rejection;
-- cleanup mọi session và release key sau khi người dùng xác nhận;
-- launch/task failure vẫn cleanup đúng.
+Kịch bản bắt buộc:
+
+1. Cấu hình `general.parallelThreads = 3`.
+2. Chọn proxy/browser settings thực tế đang cần kiểm tra.
+3. Chọn menu `Bắt đầu`.
+4. Nhập chính xác URL `https://canva.com/`.
+5. Xác nhận hệ thống tạo đủ 3 worker và mở đủ 3 browser thật.
+6. Xác nhận cả 3 browser đều điều hướng tới `https://canva.com/` thành công và nhận response thành công từ trang đích.
+7. Chụp/ghi lại output thực tế của từng worker, URL cuối cùng và response status; không chấp nhận kết quả chỉ dựa trên log giả hoặc mock.
+8. Sau khi người dùng kiểm tra, nhấn Enter để xác nhận cleanup; xác nhận cả 3 browser đóng và proxy/Kiot resource được xử lý đúng.
+
+Chỉ được báo hoàn thành khi cả 3 worker/browser truy cập `https://canva.com/` thành công trong lần chạy live này. Nếu thiếu browser, điều hướng lỗi, response lỗi, hoặc chưa có evidence runtime thật thì phải báo chưa hoàn thành.
 
 ## Ngoài phạm vi
 
-- Không tự động đăng ký, tạo thiết kế, xử lý email hoặc thao tác Canva khác.
 - Không thay đổi settings schema ngoài những gì đang có.
 - Không thay đổi adapter browser riêng lẻ nếu contract hiện tại đủ dùng.

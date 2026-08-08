@@ -30,7 +30,7 @@ function splitProxy(value: string, line: number): { scheme: string; fields: stri
     const schemeMatch = /^([a-z][a-z0-9+.-]*):\/\/(.*)$/i.exec(value)
     if (schemeMatch) {
         const scheme = schemeMatch[1].toLowerCase()
-        if (!SUPPORTED_SCHEMES.has(scheme)) return error(`Unsupported proxy scheme: ${scheme}`, value, line)
+        if (!SUPPORTED_SCHEMES.has(scheme)) return error(`Không hỗ trợ scheme: ${scheme}`, value, line)
         return { scheme, fields: schemeMatch[2].split(":") }
     }
 

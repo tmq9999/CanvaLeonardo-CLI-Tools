@@ -4,9 +4,7 @@ import type { BrowserLaunchOptions, BrowserSession } from "../utils/browser.js"
 
 export type BrowserTask = (session: BrowserSession) => Promise<void>
 
-export type BrowserRuntimeOptions = RuntimeDependencies & {
-    profileId?: string
-}
+export type BrowserRuntimeOptions = RuntimeDependencies
 
 export async function runBrowserRuntime(
     config: AppConfig,
@@ -23,8 +21,7 @@ export async function runBrowserRuntime(
         for (const resolved of proxies) {
             const session = await adapter.launch(buildBrowserLaunchOptions(
                 config,
-                resolved.proxy,
-                options.profileId ?? config.browser.gpmProfileId ?? undefined
+                resolved.proxy
             ))
             try {
                 await task(session)
@@ -52,13 +49,16 @@ export async function runBrowserRuntime(
 
 export function buildBrowserLaunchOptions(
     config: AppConfig,
-    proxy: BrowserLaunchOptions["proxy"],
-    profileId?: string
+    proxy: BrowserLaunchOptions["proxy"]
 ): BrowserLaunchOptions {
     return {
         visible: config.general.browserVisible,
         ...(proxy ? { proxy } : {}),
-        ...(profileId ? { profileId } : {}),
-        ...(config.browser.engine === "camoufox" ? { camoufox: config.browser.camoufox.options } : {})
+        ...(config.browser.engine === "camoufox" ? {
+            camoufox: {
+                ...config.browser.camoufox.options,
+                geoip: config.browser.camoufox.options.geoip || Boolean(proxy)
+            }
+        } : {})
     }
 }

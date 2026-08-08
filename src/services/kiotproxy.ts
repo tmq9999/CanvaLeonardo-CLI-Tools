@@ -15,6 +15,7 @@ type KiotApiResponse = {
 
 export type ResolvedKiotProxy = {
     proxy: NormalizedProxy
+    ttc?: number
     code?: unknown
     message?: string
     metadata: KiotResponseData
@@ -83,6 +84,7 @@ export class KiotProxyClient {
 
         return {
             proxy: normalizeKiotHttp(http, response.code, metadata),
+            ...(typeof metadata.ttc === "number" ? { ttc: metadata.ttc } : {}),
             ...(response.code === undefined ? {} : { code: response.code }),
             ...(typeof response.message === "string" ? { message: response.message } : {}),
             metadata

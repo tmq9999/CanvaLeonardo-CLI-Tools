@@ -1,23 +1,23 @@
 {
   "general": {
-    "parallelThreads": 1,
+    "parallelThreads": 5,
     "operationDelaySeconds": 0.5,
     "serviceMail": "hotmail-outlook",
     "browserVisible": true
   },
   "proxy": {
-    "mode": "file",
-    "filePath": "D:\\Javascript\\CanvaLeonardo\\proxy\\test.txt"
+    "mode": "kiot",
+    "filePath": "D:\\Javascript\\CanvaLeonardo\\test\\test.txt"
   },
   "browser": {
-    "engine": "chromium",
+    "engine": "camoufox",
     "gpmPort": 9495,
     "camoufox": {
       "mode": "custom",
       "options": {
-        "geoip": false,
-        "humanize": false,
-        "blockWebRTC": false,
+        "geoip": true,
+        "humanize": true,
+        "blockWebRTC": true,
         "blockWebGL": false,
         "blockImage": false
       }
