@@ -85,6 +85,12 @@ Profile stop: completed.
 Temporary profile: soft-deleted.
 ```
 
+### HTTP follow-up diagnosis
+
+The initial HTTP check used `http://ip:port`, then `ip:port` was tested as the documented alternate format. GPM persisted the latter unchanged, confirming it accepted the HTTP proxy value, but its normal preflight returned `ProxyCheckFailed`; a browser started with `skip_proxy_check=true` timed out on the IP-check request.
+
+The same HTTP proxy was then tested immediately with Playwright Chromium directly (outside GPM) and timed out on the same request. Therefore the captured evidence does not support an assertion that GPM lacks HTTP support: the supplied HTTP proxy endpoint was not forwarding traffic at the time of the control test. SOCKS5 routing remains the only verified GPM proxy route.
+
 ## Scope and concerns
 
 - The active menu now invokes the runtime, but it has no task-specific browser automation; the common runtime accepts a task callback for future automation.
