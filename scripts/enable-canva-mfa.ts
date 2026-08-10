@@ -1,0 +1,1 @@
+throw new Error("Script MFA cũ đã bị vô hiệu hóa vì từng hard-code profile/account và ghi TOTP plaintext vào .env. Hãy chạy npm run canva:invite-login để bật 2FA trong cùng flow và lưu secret mã hóa vào vault local.")

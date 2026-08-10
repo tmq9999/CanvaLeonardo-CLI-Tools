@@ -1,6 +1,6 @@
 import { Camoufox, type LaunchOptions as CamoufoxLaunchOptions } from "camoufox-js"
 import { chromium, type LaunchOptions as PlaywrightLaunchOptions } from "playwright"
-import type { GpmLoginClient } from "../services/gpmlogin.js"
+import type { GpmLoginClient, GpmProfileStart } from "../services/gpmlogin.js"
 import type { NormalizedProxy } from "./proxy.js"
 
 export type BrowserPage = object
@@ -8,11 +8,13 @@ export type BrowserPage = object
 export interface BrowserContext {
     newPage(): Promise<BrowserPage>
     close(): Promise<void>
+    pages?(): BrowserPage[]
 }
 
 export interface BrowserClient {
     newContext(): Promise<BrowserContext>
     close(): Promise<void>
+    contexts?(): BrowserContext[]
 }
 
 export type BrowserSession = {
@@ -29,6 +31,7 @@ export type BrowserSession = {
 
 export type BrowserLaunchOptions = {
     visible: boolean
+    profileName?: string
     proxy?: NormalizedProxy
     camoufox?: {
         geoip: boolean
@@ -97,42 +100,36 @@ export class CamoufoxAdapter implements BrowserAdapter {
     }
 }
 
-type GpmClient = Pick<GpmLoginClient, "createProfile" | "startProfile" | "stopProfile" | "deleteProfile">
+type GpmClient = Pick<GpmLoginClient, "createProfile" | "startProfile" | "stopProfile">
 type CdpConnector = (endpoint: string) => Promise<BrowserClient>
 
 export class GpmLoginAdapter implements BrowserAdapter {
     constructor(
         private readonly client: GpmClient,
-        private readonly dependencies: { connect?: CdpConnector } = {}
+        private readonly dependencies: { connect?: CdpConnector; debuggingPort?: number; startTimeoutMs?: number } = {}
     ) {}
 
     async launch(options: BrowserLaunchOptions): Promise<BrowserSession> {
         const profileId = await this.createWorkerProfile(options)
-        const started = await this.client.startProfile(profileId)
+        const debuggingPort = this.dependencies.debuggingPort ?? gpmDebuggingPort(profileId)
+        const started = await this.startProfile(profileId, debuggingPort)
         try {
-            if (!started.cdpEndpoint) throw new Error("GPM profile did not return a CDP endpoint")
+            const cdpEndpoint = started.cdpEndpoint ?? `http://127.0.0.1:${debuggingPort}`
             const browser = await (this.dependencies.connect
-                ? this.dependencies.connect(started.cdpEndpoint)
-                : chromium.connectOverCDP(started.cdpEndpoint))
+                ? this.dependencies.connect(cdpEndpoint)
+                : chromium.connectOverCDP(cdpEndpoint))
             return await createSession(browser, {
                 adapter: "gpm",
                 profileId,
                 profileCreated: true,
-                cdpEndpoint: started.cdpEndpoint
-            })
+                cdpEndpoint
+            }, true)
         } catch (error) {
-            const cleanupErrors: unknown[] = []
             try {
                 await this.client.stopProfile(profileId)
             } catch (cleanupError) {
-                cleanupErrors.push(cleanupError)
+                throw new AggregateError([error, cleanupError], "GPM launch cleanup failed")
             }
-            try {
-                await this.client.deleteProfile(profileId)
-            } catch (cleanupError) {
-                cleanupErrors.push(cleanupError)
-            }
-            if (cleanupErrors.length > 0) throw new AggregateError([error, ...cleanupErrors], "GPM launch cleanup failed")
             throw error
         }
     }
@@ -145,35 +142,54 @@ export class GpmLoginAdapter implements BrowserAdapter {
             browserError = error
         }
 
-        const profileErrors: unknown[] = []
+        let profileError: unknown
         try {
             if (session.cleanup.profileId) await this.client.stopProfile(session.cleanup.profileId)
         } catch (error) {
-            profileErrors.push(error)
-        }
-        if (session.cleanup.profileCreated && session.cleanup.profileId) {
-            try {
-                await this.client.deleteProfile(session.cleanup.profileId)
-            } catch (error) {
-                profileErrors.push(error)
-            }
+            profileError = error
         }
 
-        if (browserError && profileErrors.length > 0) throw new AggregateError([browserError, ...profileErrors], "GPM browser cleanup failed")
+        if (browserError && profileError) throw new AggregateError([browserError, profileError], "GPM browser cleanup failed")
         if (browserError) throw browserError
-        if (profileErrors.length === 1) throw profileErrors[0]
-        if (profileErrors.length > 1) throw new AggregateError(profileErrors, "GPM profile cleanup failed")
+        if (profileError) throw profileError
     }
 
     private async createWorkerProfile(options: BrowserLaunchOptions): Promise<string> {
         const created = await this.client.createProfile({
-            name: "Canva Worker",
+            name: options.profileName?.trim() || "Canva Worker",
             ...(options.proxy ? { raw_proxy: proxySource(options.proxy) } : {})
         })
         const profileId = created.id
         if (!profileId) throw new Error("GPM không trả về profile ID mới")
         return profileId
     }
+
+    private async startProfile(profileId: string, debuggingPort: number): Promise<GpmProfileStart> {
+        const start = this.client.startProfile(profileId, { remoteDebuggingPort: debuggingPort })
+        const timeoutMs = this.dependencies.startTimeoutMs ?? 10_000
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+            return await Promise.race([
+                start,
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new GpmStartTimeoutError()), timeoutMs)
+                })
+            ])
+        } catch (error) {
+            if (!(error instanceof GpmStartTimeoutError)) throw error
+            return { profile: { id: profileId }, cdpEndpoint: `http://127.0.0.1:${debuggingPort}` }
+        } finally {
+            if (timer) clearTimeout(timer)
+        }
+    }
+}
+
+class GpmStartTimeoutError extends Error {}
+
+function gpmDebuggingPort(profileId: string): number {
+    let hash = 0
+    for (const character of profileId) hash = ((hash * 31) + character.charCodeAt(0)) >>> 0
+    return 30_000 + (hash % 20_000)
 }
 
 function playwrightProxy(proxy: NormalizedProxy): NonNullable<PlaywrightLaunchOptions["proxy"]> {
@@ -185,24 +201,32 @@ function playwrightProxy(proxy: NormalizedProxy): NonNullable<PlaywrightLaunchOp
 }
 
 function proxySource(proxy: NormalizedProxy): string {
+    const endpoint = `${proxy.host}:${proxy.port}`
     const credentials = proxy.username
-        ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password ?? "")}@`
+        ? `:${proxy.username}:${proxy.password ?? ""}`
         : ""
-    return `${proxy.scheme}://${credentials}${proxy.host}:${proxy.port}`
+    if (proxy.scheme === "http" || proxy.scheme === "https") return `${endpoint}${credentials}`
+    return `${proxy.scheme}://${endpoint}${credentials}`
 }
 
 async function createSession(
     browser: BrowserClient,
-    cleanup: BrowserSession["cleanup"]
+    cleanup: BrowserSession["cleanup"],
+    useExistingContext = false
 ): Promise<BrowserSession> {
     let context: BrowserContext | undefined
+    let contextCreated = false
     try {
-        context = await browser.newContext()
-        const page = await context.newPage()
+        context = useExistingContext ? browser.contexts?.()[0] : undefined
+        if (!context) {
+            context = await browser.newContext()
+            contextCreated = true
+        }
+        const page = context.pages?.()[0] ?? await context.newPage()
         return { browser, context, page, cleanup }
     } catch (error) {
         const cleanupErrors: unknown[] = []
-        if (context) {
+        if (context && contextCreated) {
             try {
                 await context.close()
             } catch (cleanupError) {

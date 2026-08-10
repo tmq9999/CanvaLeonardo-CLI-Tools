@@ -20,6 +20,10 @@ export type GpmProfileStart = {
     cdpEndpoint?: string
 }
 
+export type GpmProfileStartOptions = {
+    remoteDebuggingPort?: number
+}
+
 export class GpmConnectionError extends Error {
     constructor(
         message: string,
@@ -95,9 +99,10 @@ export class GpmLoginClient {
         ) as Promise<GpmProfile>
     }
 
-    async startProfile(id: string): Promise<GpmProfileStart> {
+    async startProfile(id: string, options: GpmProfileStartOptions = {}): Promise<GpmProfileStart> {
         this.requireGroup()
-        const profile = await this.requestData(`/api/v1/profiles/start/${encodeURIComponent(id)}`, "profile") as GpmProfile
+        const query = options.remoteDebuggingPort ? `?remote_debugging_port=${options.remoteDebuggingPort}` : ""
+        const profile = await this.requestData(`/api/v1/profiles/start/${encodeURIComponent(id)}${query}`, "profile") as GpmProfile
         return { profile, ...(cdpEndpointFrom(profile) ? { cdpEndpoint: cdpEndpointFrom(profile) } : {}) }
     }
 

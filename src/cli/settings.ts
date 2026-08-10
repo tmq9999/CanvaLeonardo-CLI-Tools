@@ -1,14 +1,18 @@
-import { checkbox, input, select } from "@inquirer/prompts"
+import { checkbox, input, password, select } from "@inquirer/prompts"
 import chalk from "chalk"
 import {
     type AppConfig,
+    type CustomMailDomainMode,
     loadConfig,
     saveConfig,
+    passwordStatus,
     validateDelay,
     validatePort,
     validateThreads,
-    validateTxtPath
+    validateTxtPath,
+    withRefreshedCustomMailDomains
 } from "../core/config.js"
+import { CustomMailWorkerClient } from "../services/custom-mail.js"
 import { GpmLoginClient, type GpmGroup } from "../services/gpmlogin.js"
 import { clearScreen } from "../utils/screen.js"
 
@@ -58,8 +62,12 @@ async function generalSettings(config: AppConfig): Promise<AppConfig> {
             message: chalk.yellow("Cài đặt chung (chọn mục muốn chỉnh sửa)\n"),
             choices: [
                 { name: `Số luồng song song [${config.general.parallelThreads}]`, value: "threads" },
+                { name: `Số vòng [${config.general.totalRounds}]`, value: "rounds" },
                 { name: `Thời gian chờ [${config.general.operationDelaySeconds}s]`, value: "delay" },
                 { name: `Service Mail [${config.general.serviceMail}]`, value: "mail" },
+                { name: `Mật khẩu Canva [${passwordStatus(config.general.canvaPassword)}]`, value: "password" },
+                { name: `Bật 2FA Canva [${config.general.canvaEnableMfa ? "Có" : "Không"}]`, value: "canva-mfa" },
+                { name: `Tự động login Leonardo [${config.general.leonardoAutoLogin ? "Có" : "Không"}]`, value: "leonardo" },
                 { name: `Hiện cửa sổ browser [${config.general.browserVisible ? "Có" : "Không"}]`, value: "visible" },
                 { name: "Quay lại (Back)", value: "back" }
             ]
@@ -69,6 +77,9 @@ async function generalSettings(config: AppConfig): Promise<AppConfig> {
         if (setting === "threads") {
             const value = Number(await input({ message: "Số luồng song song:", default: String(config.general.parallelThreads), validate: validateThreads }))
             config = await persist({ ...config, general: { ...config.general, parallelThreads: value } }, "Đã lưu số luồng song song")
+        } else if (setting === "rounds") {
+            const value = Number(await input({ message: "Số vòng (1-100):", default: String(config.general.totalRounds), validate: v => { const n = Number(v); return Number.isInteger(n) && n >= 1 && n <= 100 ? true : "Nhập số nguyên từ 1 đến 100" } }))
+            config = await persist({ ...config, general: { ...config.general, totalRounds: value } }, "Đã lưu số vòng")
         } else if (setting === "delay") {
             const value = Number(await input({ message: "Thời gian chờ giữa các thao tác (giây):", default: String(config.general.operationDelaySeconds), validate: validateDelay }))
             config = await persist({ ...config, general: { ...config.general, operationDelaySeconds: value } }, "Đã lưu thời gian chờ")
@@ -79,10 +90,30 @@ async function generalSettings(config: AppConfig): Promise<AppConfig> {
                 choices: [
                     { name: "Hotmail/Outlook", value: "hotmail-outlook" },
                     { name: "Adguard Mail", value: "adguard-mail" },
-                    { name: "Gmail", value: "gmail" }
+                    { name: "Gmail", value: "gmail" },
+                    { name: "Custom Mail (Faker + Worker domain)", value: "custom" }
                 ]
             })
             config = await persist({ ...config, general: { ...config.general, serviceMail: value } }, "Đã lưu Service Mail")
+            if (value === "custom") config = await customMailSettings(config)
+        } else if (setting === "password") {
+            const value = await password({
+                message: "Mật khẩu Canva mới (để trống dùng mật khẩu mặc định):",
+                mask: "*"
+            })
+            config = await persist(withCanvaPassword(config, value), "Đã lưu mật khẩu Canva")
+        } else if (setting === "canva-mfa") {
+            const value = await checkbox({
+                message: chalk.yellow("Bật 2FA Canva sau khi đổi mật khẩu? (Space để bật/tắt, Enter để lưu)"),
+                choices: [{ name: "Đăng nhập lại và bật 2FA Canva", value: "enabled", checked: config.general.canvaEnableMfa }]
+            })
+            config = await persist({ ...config, general: { ...config.general, canvaEnableMfa: value.includes("enabled") } }, "Đã lưu tùy chọn 2FA Canva")
+        } else if (setting === "leonardo") {
+            const value = await checkbox({
+                message: chalk.yellow("Tự động đăng nhập Leonardo sau flow Canva? (Space để bật/tắt, Enter để lưu)"),
+                choices: [{ name: "Tự động login Leonardo.ai", value: "enabled", checked: config.general.leonardoAutoLogin }]
+            })
+            config = await persist({ ...config, general: { ...config.general, leonardoAutoLogin: value.includes("enabled") } }, "Đã lưu tùy chọn Leonardo auto-login")
         } else if (setting === "visible") {
             const value = await checkbox({
                 message: chalk.yellow("Hiện cửa sổ trình duyệt? (Space để bật/tắt, Enter để lưu)"),
@@ -90,6 +121,91 @@ async function generalSettings(config: AppConfig): Promise<AppConfig> {
             })
             config = await persist({ ...config, general: { ...config.general, browserVisible: value.includes("visible") } }, "Đã lưu chế độ hiển thị browser")
         }
+    }
+}
+
+export function withCanvaPassword(config: AppConfig, value: string): AppConfig {
+    const password = value.trim()
+    return {
+        ...config,
+        general: {
+            ...config.general,
+            ...(password ? { canvaPassword: password } : { canvaPassword: undefined })
+        }
+    }
+}
+
+export function withCustomMailSelection(config: AppConfig, domainMode: CustomMailDomainMode, selectedDomains: string[]): AppConfig {
+    const available = new Set(config.general.customMail.domains)
+    const selected = [...new Set(selectedDomains.map(domain => domain.trim().toLowerCase()))]
+        .filter(domain => available.has(domain))
+    return {
+        ...config,
+        general: {
+            ...config.general,
+            customMail: {
+                ...config.general.customMail,
+                domainMode,
+                selectedDomains: selected
+            }
+        }
+    }
+}
+
+async function customMailSettings(config: AppConfig): Promise<AppConfig> {
+    let current = config
+    if (current.general.customMail.domains.length === 0) current = await refreshCustomMailDomains(current)
+
+    while (true) {
+        const setting = await select({
+            message: chalk.yellow("Custom Mail (Faker + Worker domain)\n"),
+            choices: [
+                { name: `Chế độ domain [${current.general.customMail.domainMode === "all-random" ? "Random toàn bộ" : "Chọn domain"}]`, value: "mode" },
+                { name: `Chọn domain [${current.general.customMail.selectedDomains.length}/${current.general.customMail.domains.length}]`, value: "domains" },
+                { name: "Cập nhật domains từ Worker", value: "refresh" },
+                { name: "Quay lại (Back)", value: "back" }
+            ]
+        })
+        if (setting === "back") return current
+
+        if (setting === "mode") {
+            const mode = await select({
+                message: "Chế độ chọn domain:",
+                default: current.general.customMail.domainMode,
+                choices: [
+                    { name: "Random toàn bộ domain", value: "all-random" },
+                    { name: "Random trong domain đã chọn", value: "selected-random" }
+                ]
+            }) as CustomMailDomainMode
+            current = await persist(withCustomMailSelection(current, mode, current.general.customMail.selectedDomains), "Đã lưu chế độ Custom Mail")
+        } else if (setting === "domains") {
+            if (current.general.customMail.domains.length === 0) {
+                console.log(chalk.red("✗ Chưa có domain. Hãy cập nhật từ Worker."))
+                continue
+            }
+            const selected = await checkbox({
+                message: "Tick domain muốn dùng khi chọn chế độ Chọn domain:",
+                choices: current.general.customMail.domains.map(domain => ({
+                    name: domain,
+                    value: domain,
+                    checked: current.general.customMail.selectedDomains.includes(domain)
+                }))
+            })
+            current = await persist(withCustomMailSelection(current, "selected-random", selected), "Đã lưu domain Custom Mail đã chọn")
+        } else if (setting === "refresh") {
+            current = await refreshCustomMailDomains(current)
+        }
+    }
+}
+
+async function refreshCustomMailDomains(config: AppConfig): Promise<AppConfig> {
+    try {
+        const domains = await new CustomMailWorkerClient(config.general.customMail.workerUrl).listActiveDomains()
+        if (domains.length === 0) throw new Error("Worker không có domain active")
+        return persist(withRefreshedCustomMailDomains(config, domains), "Đã cập nhật domain Custom Mail")
+    } catch (error) {
+        console.log(chalk.red(`✗ ${error instanceof Error ? error.message : "Không thể cập nhật domain từ Worker"}`))
+        return config
     }
 }
 

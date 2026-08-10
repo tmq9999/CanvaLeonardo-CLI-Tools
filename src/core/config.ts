@@ -2,16 +2,29 @@ import { readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export type ProxyMode = "none" | "kiot" | "file"
-export type ServiceMail = "hotmail-outlook" | "adguard-mail" | "gmail"
+export type ServiceMail = "hotmail-outlook" | "adguard-mail" | "gmail" | "custom"
 export type BrowserEngine = "chromium" | "camoufox" | "gpm"
 export type CamoufoxMode = "default" | "custom"
+export type CustomMailDomainMode = "all-random" | "selected-random"
+
+export interface CustomMailConfig {
+    workerUrl: string
+    domains: string[]
+    selectedDomains: string[]
+    domainMode: CustomMailDomainMode
+}
 
 export interface AppConfig {
     general: {
         parallelThreads: number
+        totalRounds: number
         operationDelaySeconds: number
         serviceMail: ServiceMail
         browserVisible: boolean
+        canvaPassword?: string
+        canvaEnableMfa: boolean
+        leonardoAutoLogin: boolean
+        customMail: CustomMailConfig
     }
     proxy: {
         mode: ProxyMode
@@ -35,12 +48,23 @@ export interface AppConfig {
     }
 }
 
+const DEFAULT_CANVA_PASSWORD = "ZxcvZxcv@123."
+
 export const DEFAULT_CONFIG: AppConfig = {
     general: {
         parallelThreads: 1,
+        totalRounds: 1,
         operationDelaySeconds: 0.5,
         serviceMail: "hotmail-outlook",
-        browserVisible: true
+        browserVisible: true,
+        canvaEnableMfa: false,
+        leonardoAutoLogin: true,
+        customMail: {
+            workerUrl: "https://tempmail.benobaty.online",
+            domains: [],
+            selectedDomains: [],
+            domainMode: "all-random"
+        }
     },
     proxy: { mode: "none", filePath: "" },
     browser: {
@@ -120,4 +144,27 @@ export function validateTxtPath(value: string): string | true {
     return value.trim().toLowerCase().endsWith(".txt")
         ? true
         : "Đường dẫn phải trỏ tới file .txt"
+}
+
+export function resolveCanvaPassword(config: AppConfig): string {
+    return config.general.canvaPassword?.trim() || DEFAULT_CANVA_PASSWORD
+}
+
+export function passwordStatus(value: string | undefined): "Đã đặt" | "Mặc định" {
+    return value?.trim() ? "Đã đặt" : "Mặc định"
+}
+
+export function withRefreshedCustomMailDomains(config: AppConfig, domains: string[]): AppConfig {
+    const normalized = [...new Set(domains.map(domain => domain.trim().toLowerCase()).filter(Boolean))].sort()
+    return {
+        ...config,
+        general: {
+            ...config.general,
+            customMail: {
+                ...config.general.customMail,
+                domains: normalized,
+                selectedDomains: config.general.customMail.selectedDomains.filter(domain => normalized.includes(domain))
+            }
+        }
+    }
 }

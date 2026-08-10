@@ -1,15 +1,39 @@
+```gitignore
 # Secrets — KHÔNG BAO GIỜ commit
 .env
 *.env
 
-#Documents
+# Documents
 .worktrees/
+docs/
+.docs/
 
-#Module - Không Commit
+# Modules
 node_modules/
 .node_modules/
 
-#Test
-test
+# Tests
+test/
 .test/
+*.test.js
+*.test.ts
 
+# Read iCloud Mail
+.Read-icloud-Mail/
+Read-icloud-Mail/
+
+# Get Details Script
+GetDetailsScript/
+.GetDetailsScript/
+
+# Data
+.data/
+data/
+
+# Build
+dist/
+.dist/
+
+# Superpowers
+.superpowers/
+```

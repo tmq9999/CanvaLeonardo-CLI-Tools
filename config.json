@@ -1,16 +1,39 @@
 {
   "general": {
-    "parallelThreads": 5,
-    "operationDelaySeconds": 0.5,
-    "serviceMail": "hotmail-outlook",
-    "browserVisible": true
+    "parallelThreads": 2,
+    "totalRounds": 2,
+    "operationDelaySeconds": 2,
+    "serviceMail": "custom",
+    "browserVisible": true,
+    "canvaEnableMfa": false,
+    "leonardoAutoLogin": true,
+    "customMail": {
+      "workerUrl": "https://tempmail.benobaty.online",
+      "domains": [
+        "benobaty.online",
+        "chatgpt-support.com",
+        "daylatenmiencuatoi.shop",
+        "ducveo3.site",
+        "ducveoo3.site",
+        "easygenstd.shop",
+        "mquangpromax.shop",
+        "quabuonrau-ditimchanli.shop",
+        "quangchoigen.store",
+        "thayquangdzai.shop",
+        "timlaichinhminh-saudovo.shop",
+        "tinhyeu-khongcoloi-people.shop"
+      ],
+      "selectedDomains": [],
+      "domainMode": "all-random"
+    },
+    "canvaPassword": "ZxcvZxcv@123."
   },
   "proxy": {
-    "mode": "kiot",
-    "filePath": "D:\\Javascript\\CanvaLeonardo\\test\\test.txt"
+    "mode": "none",
+    "filePath": ""
   },
   "browser": {
-    "engine": "camoufox",
+    "engine": "gpm",
     "gpmPort": 9495,
     "camoufox": {
       "mode": "custom",
@@ -21,6 +44,8 @@
         "blockWebGL": false,
         "blockImage": false
       }
-    }
+    },
+    "gpmGroupId": "09ce8303-f32b-4efd-a428-2f71bf5a02c1",
+    "gpmGroupName": "CanvaLeonardo"
   }
 }
